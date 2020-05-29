@@ -166,7 +166,7 @@ func (h *requestHandler) writeComposeImage() error {
 	response, err := client.WriteComposeImageV0(h.client, h.request.ImageWriter, h.composeId.String())
 	if err := translateError(response, err); err != nil {
 		return &APIError{
-			Message: "canoot download the image",
+			Message: "cannot download the image",
 			Cause:   err,
 		}
 	}
