@@ -3,6 +3,7 @@ package weldr_image
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -20,12 +21,24 @@ type Request struct {
 	ImageWriter io.Writer
 }
 
+type APIError struct {
+	Message string
+	Cause   error
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("%s\n caused by: %v", e.Message, e.Cause)
+}
+
 func (r *Request) Validate() error {
 	c := newClient()
 
 	types, response, err := client.GetComposesTypesV0(c)
-	if err != nil || response != nil {
-		return errors.New("cannot retrieve compose types")
+	if err := translateError(response, err); err != nil {
+		return &APIError{
+			Message: "cannot retrieve compose types",
+			Cause:   err,
+		}
 	}
 
 	if !isImageTypeValid(r.ImageType, types) {
@@ -41,20 +54,29 @@ func (r *Request) Process() error {
 	id := uuid.New()
 	response, err := client.PostJSONBlueprintV0(c, `{"name": "`+blueprintName(id)+`"}`)
 
-	if err != nil || !response.Status {
-		return errors.New("cannot post a new blueprint")
+	if err := translateError(response, err); err != nil {
+		return &APIError{
+			Message: "cannot post a new blueprint",
+			Cause:   err,
+		}
 	}
 
 	response, err = client.PostComposeV0(c, `{"blueprint_name": "`+blueprintName(id)+`", "compose_type": "`+r.ImageType+`"}`)
-	if err != nil || !response.Status {
-		return errors.New("cannot post a new compose")
+	if err := translateError(response, err); err != nil {
+		return &APIError{
+			Message: "cannot post a new compose",
+			Cause:   err,
+		}
 	}
 
 	var composeId uuid.UUID
 	for {
 		composes, response, err := client.GetComposeStatusV0(c, "*", blueprintName(id), "", "")
-		if err != nil || response != nil {
-			return errors.New("cannot query compose status")
+		if err := translateError(response, err); err != nil {
+			return &APIError{
+				Message: "cannot retrieve a compose status",
+				Cause:   err,
+			}
 		}
 		if len(composes) != 1 {
 			return errors.New("wrong number of composes")
@@ -73,8 +95,11 @@ func (r *Request) Process() error {
 	}
 
 	response, err = client.WriteComposeImageV0(c, r.ImageWriter, composeId.String())
-	if err != nil || response != nil {
-		return errors.New("error when writing the image")
+	if err := translateError(response, err); err != nil {
+		return &APIError{
+			Message: "canoot download the image",
+			Cause:   err,
+		}
 	}
 
 	return nil
@@ -102,4 +127,20 @@ func newClient() *http.Client {
 
 func blueprintName(id uuid.UUID) string {
 	return "bp-" + id.String()
+}
+
+func translateError(response *client.APIResponse, err error) error {
+	if err != nil {
+		return err
+	}
+
+	if response == nil {
+		return nil
+	}
+
+	if !response.Status {
+		return errors.New("API returned response with false status")
+	}
+
+	return nil
 }
