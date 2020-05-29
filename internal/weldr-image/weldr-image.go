@@ -1,6 +1,8 @@
 package weldr_image
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -19,8 +22,9 @@ import (
 )
 
 type Request struct {
-	ImageType   string
-	ImageWriter io.Writer
+	ImageType    string
+	ImageWriter  io.Writer
+	ManifestPath string
 }
 
 type APIError struct {
@@ -117,6 +121,14 @@ func (r *Request) Process() error {
 	if err != nil {
 		return err
 	}
+
+	if rh.request.ManifestPath != "" {
+		err := rh.writeManifest()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -221,6 +233,37 @@ func (h *requestHandler) deleteCompose() error {
 			Message: "cannot delete the blueprint",
 			Cause:   err,
 		}
+	}
+
+	return nil
+}
+
+func (h *requestHandler) writeManifest() error {
+	var tarManifestBuffer bytes.Buffer
+	response, err := client.WriteComposeMetadataV0(h.client, &tarManifestBuffer, h.composeId.String())
+
+	if err := translateError(response, err); err != nil {
+		return &APIError{
+			Message: "cannot retrieve the manifest",
+			Cause:   err,
+		}
+	}
+
+	tarReader := tar.NewReader(&tarManifestBuffer)
+
+	manifestHeader, err := tarReader.Next()
+	if err != nil {
+		return fmt.Errorf("cannot decode the metadata tar: %v", err)
+	}
+
+	f, err := os.Create(h.request.ManifestPath)
+	if err != nil {
+		return fmt.Errorf("cannot created the manifest file: %v", err)
+	}
+
+	_, err = io.CopyN(f, tarReader, manifestHeader.Size)
+	if err != nil {
+		return fmt.Errorf("cannot copy the manifest: %v", err)
 	}
 
 	return nil

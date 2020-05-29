@@ -11,8 +11,9 @@ import (
 )
 
 type flags struct {
-	imageType string
-	imagePath string
+	imageType    string
+	imagePath    string
+	manifestPath string
 }
 
 func validateFlags(flags *flags) error {
@@ -26,7 +27,8 @@ func validateFlags(flags *flags) error {
 func main() {
 	var flags flags
 	flag.StringVar(&flags.imageType, "type", "", "image type to be built")
-	flag.StringVar(&flags.imagePath, "output", "", "filename of the produced image")
+	flag.StringVar(&flags.imagePath, "output", "", "path where the image will be saved")
+	flag.StringVar(&flags.manifestPath, "output-manifest", "", "path where the manifest will be saved (optional, it's not saved if no path is given)")
 	flag.Parse()
 
 	if err := validateFlags(&flags); err != nil {
@@ -36,14 +38,14 @@ func main() {
 	}
 
 	imageFile, err := os.Create(flags.imagePath)
-
 	if err != nil {
-		log.Fatal("cannot open the output file", err)
+		log.Fatal("cannot open the output file: ", err)
 	}
 
 	req := &weldr_image.Request{
-		ImageType:   flags.imageType,
-		ImageWriter: imageFile,
+		ImageType:      flags.imageType,
+		ImageWriter:    imageFile,
+		ManifestPath: flags.manifestPath,
 	}
 
 	err = req.Validate()
