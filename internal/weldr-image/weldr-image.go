@@ -115,7 +115,7 @@ func (r *Request) Process() error {
 
 	err = rh.writeComposeImage()
 	if err != nil {
-
+		return err
 	}
 	return nil
 }
