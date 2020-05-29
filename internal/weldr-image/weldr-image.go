@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"time"
@@ -67,6 +68,12 @@ func (r *Request) Process() error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		err := rh.deleteBlueprint()
+		if err != nil {
+			log.Printf("cannot delete the blueprint: %v\n", err)
+		}
+	}()
 
 	err = rh.pushCompose()
 	if err != nil {
@@ -160,6 +167,18 @@ func (h *requestHandler) writeComposeImage() error {
 	if err := translateError(response, err); err != nil {
 		return &APIError{
 			Message: "canoot download the image",
+			Cause:   err,
+		}
+	}
+
+	return nil
+}
+
+func (h *requestHandler) deleteBlueprint() error {
+	response, err := client.DeleteBlueprintV0(h.client, h.blueprintName)
+	if err := translateError(response, err); err != nil {
+		return &APIError{
+			Message: "cannot delete the blueprint",
 			Cause:   err,
 		}
 	}
