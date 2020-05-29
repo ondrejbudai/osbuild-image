@@ -1,0 +1,6 @@
+It's not possible to import osbuild-composer packages because they are
+internal.
+
+This directory is a copy of some packages from osbuild-composer that
+osbuild-image uses as a weldr API client. The copy is taken from
+76c18566.
