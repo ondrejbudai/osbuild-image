@@ -20,7 +20,7 @@ type Request struct {
 	ImageWriter io.Writer
 }
 
-func (r *Request) Process() error {
+func (r *Request) Validate() error {
 	c := newClient()
 
 	types, response, err := client.GetComposesTypesV0(c)
@@ -32,8 +32,14 @@ func (r *Request) Process() error {
 		return errors.New("the image type is not valid")
 	}
 
+	return nil
+}
+
+func (r *Request) Process() error {
+	c := newClient()
+
 	id := uuid.New()
-	response, err = client.PostJSONBlueprintV0(c, `{"name": "`+blueprintName(id)+`"}`)
+	response, err := client.PostJSONBlueprintV0(c, `{"name": "`+blueprintName(id)+`"}`)
 
 	if err != nil || !response.Status {
 		return errors.New("cannot post a new blueprint")

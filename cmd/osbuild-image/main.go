@@ -24,6 +24,11 @@ func main() {
 		ImageWriter: imageFile,
 	}
 
+	err = req.Validate()
+	if err != nil {
+		log.Fatal("validation of the inputs failed: ", err)
+	}
+
 	err = req.Process()
 
 	if err != nil {
