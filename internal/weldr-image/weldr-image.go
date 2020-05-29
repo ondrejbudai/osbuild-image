@@ -79,6 +79,12 @@ func (r *Request) Process() error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		err := rh.deleteCompose()
+		if err != nil {
+			log.Printf("cannot delete the compose: %v\n", err)
+		}
+	}()
 
 	err = rh.waitForFinishedCompose()
 	if err != nil {
@@ -176,6 +182,18 @@ func (h *requestHandler) writeComposeImage() error {
 
 func (h *requestHandler) deleteBlueprint() error {
 	response, err := client.DeleteBlueprintV0(h.client, h.blueprintName)
+	if err := translateError(response, err); err != nil {
+		return &APIError{
+			Message: "cannot delete the blueprint",
+			Cause:   err,
+		}
+	}
+
+	return nil
+}
+
+func (h *requestHandler) deleteCompose() error {
+	_, response, err := client.DeleteComposeV0(h.client, h.composeId.String())
 	if err := translateError(response, err); err != nil {
 		return &APIError{
 			Message: "cannot delete the blueprint",
