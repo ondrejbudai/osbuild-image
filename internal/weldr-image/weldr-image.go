@@ -30,6 +30,15 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("%s\n caused by: %v", e.Message, e.Cause)
 }
 
+type requestHandler struct {
+	request *Request
+
+	client *http.Client
+
+	blueprintName string
+	composeId     uuid.UUID
+}
+
 func (r *Request) Validate() error {
 	c := newClient()
 
@@ -49,10 +58,36 @@ func (r *Request) Validate() error {
 }
 
 func (r *Request) Process() error {
-	c := newClient()
+	rh := requestHandler{
+		client:  newClient(),
+		request: r,
+	}
 
-	id := uuid.New()
-	response, err := client.PostJSONBlueprintV0(c, `{"name": "`+blueprintName(id)+`"}`)
+	err := rh.pushBlueprint()
+	if err != nil {
+		return err
+	}
+
+	err = rh.pushCompose()
+	if err != nil {
+		return err
+	}
+
+	err = rh.waitForFinishedCompose()
+	if err != nil {
+		return err
+	}
+
+	err = rh.writeComposeImage()
+	if err != nil {
+
+	}
+	return nil
+}
+
+func (h *requestHandler) pushBlueprint() error {
+	blueprintName := uuid.New().String()
+	response, err := client.PostJSONBlueprintV0(h.client, `{"name": "`+blueprintName+`"}`)
 
 	if err := translateError(response, err); err != nil {
 		return &APIError{
@@ -61,7 +96,13 @@ func (r *Request) Process() error {
 		}
 	}
 
-	response, err = client.PostComposeV0(c, `{"blueprint_name": "`+blueprintName(id)+`", "compose_type": "`+r.ImageType+`"}`)
+	h.blueprintName = blueprintName
+
+	return nil
+}
+
+func (h *requestHandler) pushCompose() error {
+	response, err := client.PostComposeV0(h.client, `{"blueprint_name": "`+h.blueprintName+`", "compose_type": "`+h.request.ImageType+`"}`)
 	if err := translateError(response, err); err != nil {
 		return &APIError{
 			Message: "cannot post a new compose",
@@ -69,17 +110,35 @@ func (r *Request) Process() error {
 		}
 	}
 
-	var composeId uuid.UUID
+	composes, response, err := client.GetComposeStatusV0(h.client, "*", h.blueprintName, "", "")
+	if err := translateError(response, err); err != nil {
+		return &APIError{
+			Message: "cannot retrieve a compose status",
+			Cause:   err,
+		}
+	}
+
+	if len(composes) != 1 {
+		return fmt.Errorf("expected one compose, got %d", len(composes))
+	}
+
+	h.composeId = composes[0].ID
+
+	return nil
+}
+
+func (h *requestHandler) waitForFinishedCompose() error {
 	for {
-		composes, response, err := client.GetComposeStatusV0(c, "*", blueprintName(id), "", "")
+		composes, response, err := client.GetComposeStatusV0(h.client, h.composeId.String(), "", "", "")
 		if err := translateError(response, err); err != nil {
 			return &APIError{
 				Message: "cannot retrieve a compose status",
 				Cause:   err,
 			}
 		}
+
 		if len(composes) != 1 {
-			return errors.New("wrong number of composes")
+			panic("wrong number of composes")
 		}
 
 		if composes[0].QueueStatus == common.IBFailed {
@@ -87,14 +146,17 @@ func (r *Request) Process() error {
 		}
 
 		if composes[0].QueueStatus == common.IBFinished {
-			composeId = composes[0].ID
 			break
 		}
 
 		time.Sleep(1 * time.Second)
 	}
 
-	response, err = client.WriteComposeImageV0(c, r.ImageWriter, composeId.String())
+	return nil
+}
+
+func (h *requestHandler) writeComposeImage() error {
+	response, err := client.WriteComposeImageV0(h.client, h.request.ImageWriter, h.composeId.String())
 	if err := translateError(response, err); err != nil {
 		return &APIError{
 			Message: "canoot download the image",
@@ -123,10 +185,6 @@ func newClient() *http.Client {
 			},
 		},
 	}
-}
-
-func blueprintName(id uuid.UUID) string {
-	return "bp-" + id.String()
 }
 
 func translateError(response *client.APIResponse, err error) error {
