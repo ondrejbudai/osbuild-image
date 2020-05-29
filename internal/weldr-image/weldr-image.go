@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,6 +32,16 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("%s\n caused by: %v", e.Message, e.Cause)
 }
 
+type UnknownImageTypeError struct {
+	unknownImageType string
+	validImageTypes  []string
+}
+
+func (e *UnknownImageTypeError) Error() string {
+	validImageTypes := strings.Join(e.validImageTypes, ", ")
+	return fmt.Sprintf("unknown image type: %s\nvalid image types: %s", e.unknownImageType, validImageTypes)
+}
+
 type requestHandler struct {
 	request *Request
 
@@ -52,7 +63,18 @@ func (r *Request) Validate() error {
 	}
 
 	if !isImageTypeValid(r.ImageType, types) {
-		return errors.New("the image type is not valid")
+		var validImageTypes []string
+
+		for _, imageType := range types {
+			if imageType.Enabled {
+				validImageTypes = append(validImageTypes, imageType.Name)
+			}
+		}
+
+		return &UnknownImageTypeError{
+			unknownImageType: r.ImageType,
+			validImageTypes:  validImageTypes,
+		}
 	}
 
 	return nil

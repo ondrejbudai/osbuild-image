@@ -48,7 +48,8 @@ func main() {
 
 	err = req.Validate()
 	if err != nil {
-		log.Fatal("validation of the inputs failed: ", err)
+		fmt.Fprintf(os.Stderr, "validation of the image request failed: %v\n", err)
+		os.Exit(1)
 	}
 
 	err = req.Process()
