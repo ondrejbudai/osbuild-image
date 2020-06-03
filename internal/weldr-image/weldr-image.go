@@ -24,11 +24,12 @@ import (
 )
 
 type Request struct {
-	ImageType    string
-	ImageWriter  io.Writer
-	ManifestPath string
-	Blueprint    []byte
-	LogPath      string
+	ImageType     string
+	ImageWriter   io.Writer
+	ManifestPath  string
+	Blueprint     []byte
+	LogPath       string
+	KeepArtifacts bool
 }
 
 type APIError struct {
@@ -98,23 +99,27 @@ func (r *Request) Process() error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		err := rh.deleteBlueprint()
-		if err != nil {
-			log.Printf("cannot delete the blueprint: %v\n", err)
-		}
-	}()
+	if !r.KeepArtifacts {
+		defer func() {
+			err := rh.deleteBlueprint()
+			if err != nil {
+				log.Printf("cannot delete the blueprint: %v\n", err)
+			}
+		}()
+	}
 
 	err = rh.pushCompose()
 	if err != nil {
 		return err
 	}
-	defer func() {
-		err := rh.deleteCompose()
-		if err != nil {
-			log.Printf("cannot delete the compose: %v\n", err)
-		}
-	}()
+	if !r.KeepArtifacts {
+		defer func() {
+			err := rh.deleteCompose()
+			if err != nil {
+				log.Printf("cannot delete the compose: %v\n", err)
+			}
+		}()
+	}
 
 	err = rh.waitForFinishedCompose()
 	if err != nil {

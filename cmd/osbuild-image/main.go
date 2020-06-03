@@ -17,6 +17,7 @@ type flags struct {
 	manifestPath  string
 	logPath       string
 	blueprintPath string
+	keepArtifacts bool
 }
 
 func validateFlags(flags *flags) error {
@@ -34,6 +35,7 @@ func main() {
 	flag.StringVar(&flags.imagePath, "output", "", "path where the image will be saved")
 	flag.StringVar(&flags.manifestPath, "output-manifest", "", "path where the manifest will be saved (optional, it's not saved if no path is given)")
 	flag.StringVar(&flags.logPath, "output-log", "", "path where the log will be saved (optional, it's not saved if no path is given)")
+	flag.BoolVar(&flags.keepArtifacts, "keep-artifacts", false, "whether osbuild-image should keep all the artifacts (blueprint and compose), false by default, that means osbuild-image cleans up after itself")
 	flag.Parse()
 
 	if err := validateFlags(&flags); err != nil {
@@ -56,11 +58,12 @@ func main() {
 	}
 
 	req := &weldr_image.Request{
-		Blueprint:    blueprint,
-		ImageType:    flags.imageType,
-		ImageWriter:  imageFile,
-		ManifestPath: flags.manifestPath,
-		LogPath:      flags.logPath,
+		Blueprint:     blueprint,
+		ImageType:     flags.imageType,
+		ImageWriter:   imageFile,
+		ManifestPath:  flags.manifestPath,
+		LogPath:       flags.logPath,
+		KeepArtifacts: flags.keepArtifacts,
 	}
 
 	err = req.Validate()
