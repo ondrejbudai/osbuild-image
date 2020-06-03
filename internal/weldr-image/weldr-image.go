@@ -51,6 +51,14 @@ func (e *UnknownImageTypeError) Error() string {
 	return fmt.Sprintf("unknown image type: %s\nvalid image types: %s", e.unknownImageType, validImageTypes)
 }
 
+type ComposeError struct {
+	Log string
+}
+
+func (e *ComposeError) Error() string {
+	return fmt.Sprintf("compose failed, log:\n%s", e.Log)
+}
+
 type requestHandler struct {
 	request *Request
 
@@ -218,7 +226,19 @@ func (h *requestHandler) waitForFinishedCompose() error {
 		}
 
 		if composes[0].QueueStatus == common.IBFailed {
-			return errors.New("compose failed")
+			var logBuffer bytes.Buffer
+			response, err := client.WriteComposeLogV0(h.client, &logBuffer, h.composeId.String())
+
+			if err := translateError(response, err); err != nil {
+				return &APIError{
+					Message: "cannot retrieve the log",
+					Cause: &APIError{
+						Message: "compose failed",
+					},
+				}
+			}
+
+			return &ComposeError{Log: logBuffer.String()}
 		}
 
 		if composes[0].QueueStatus == common.IBFinished {
