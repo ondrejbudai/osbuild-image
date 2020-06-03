@@ -27,7 +27,8 @@ type Request struct {
 	ImageType    string
 	ImageWriter  io.Writer
 	ManifestPath string
-	Blueprint      []byte
+	Blueprint    []byte
+	LogPath      string
 }
 
 type APIError struct {
@@ -127,6 +128,13 @@ func (r *Request) Process() error {
 
 	if rh.request.ManifestPath != "" {
 		err := rh.writeManifest()
+		if err != nil {
+			return err
+		}
+	}
+
+	if rh.request.LogPath != "" {
+		err := rh.writeLog()
 		if err != nil {
 			return err
 		}
@@ -280,6 +288,24 @@ func (h *requestHandler) writeManifest() error {
 	_, err = io.CopyN(f, tarReader, manifestHeader.Size)
 	if err != nil {
 		return fmt.Errorf("cannot copy the manifest: %v", err)
+	}
+
+	return nil
+}
+
+func (h *requestHandler) writeLog() error {
+	f, err := os.Create(h.request.LogPath)
+	if err != nil {
+		return fmt.Errorf("cannot created the log file: %v", err)
+	}
+
+	response, err := client.WriteComposeLogV0(h.client, f, h.composeId.String())
+
+	if err := translateError(response, err); err != nil {
+		return &APIError{
+			Message: "cannot retrieve the log",
+			Cause:   err,
+		}
 	}
 
 	return nil

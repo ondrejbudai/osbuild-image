@@ -15,6 +15,7 @@ type flags struct {
 	imageType     string
 	imagePath     string
 	manifestPath  string
+	logPath       string
 	blueprintPath string
 }
 
@@ -32,6 +33,7 @@ func main() {
 	flag.StringVar(&flags.imageType, "type", "", "image type to be built")
 	flag.StringVar(&flags.imagePath, "output", "", "path where the image will be saved")
 	flag.StringVar(&flags.manifestPath, "output-manifest", "", "path where the manifest will be saved (optional, it's not saved if no path is given)")
+	flag.StringVar(&flags.logPath, "output-log", "", "path where the log will be saved (optional, it's not saved if no path is given)")
 	flag.Parse()
 
 	if err := validateFlags(&flags); err != nil {
@@ -54,10 +56,11 @@ func main() {
 	}
 
 	req := &weldr_image.Request{
-		Blueprint:      blueprint,
-		ImageType:      flags.imageType,
-		ImageWriter:    imageFile,
+		Blueprint:    blueprint,
+		ImageType:    flags.imageType,
+		ImageWriter:  imageFile,
 		ManifestPath: flags.manifestPath,
+		LogPath:      flags.logPath,
 	}
 
 	err = req.Validate()
