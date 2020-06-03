@@ -299,7 +299,12 @@ func translateError(response *client.APIResponse, err error) error {
 	}
 
 	if !response.Status {
-		return errors.New("API returned response with false status")
+		var errorString string
+		for _, e := range response.Errors {
+			errorString = errorString + e.String() + "\n"
+		}
+
+		return errors.New("API returned an error: " + errorString)
 	}
 
 	return nil
