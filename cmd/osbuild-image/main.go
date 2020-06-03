@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 
@@ -11,9 +12,10 @@ import (
 )
 
 type flags struct {
-	imageType    string
-	imagePath    string
-	manifestPath string
+	imageType     string
+	imagePath     string
+	manifestPath  string
+	blueprintPath string
 }
 
 func validateFlags(flags *flags) error {
@@ -26,6 +28,7 @@ func validateFlags(flags *flags) error {
 
 func main() {
 	var flags flags
+	flag.StringVar(&flags.blueprintPath, "blueprint", "", "json or toml blueprint to be used (optional, if not specified, an empty blueprint will be used)")
 	flag.StringVar(&flags.imageType, "type", "", "image type to be built")
 	flag.StringVar(&flags.imagePath, "output", "", "path where the image will be saved")
 	flag.StringVar(&flags.manifestPath, "output-manifest", "", "path where the manifest will be saved (optional, it's not saved if no path is given)")
@@ -42,7 +45,16 @@ func main() {
 		log.Fatal("cannot open the output file: ", err)
 	}
 
+	var blueprint []byte
+	if flags.blueprintPath != "" {
+		blueprint, err = ioutil.ReadFile(flags.blueprintPath)
+		if err != nil {
+			log.Fatal("cannot read the blueprint file: ", err)
+		}
+	}
+
 	req := &weldr_image.Request{
+		Blueprint:      blueprint,
 		ImageType:      flags.imageType,
 		ImageWriter:    imageFile,
 		ManifestPath: flags.manifestPath,

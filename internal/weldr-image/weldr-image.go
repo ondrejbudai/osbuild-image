@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/google/uuid"
 
 	"github.com/ondrejbudai/osbuild-image/internal/osbuild-composer/client"
@@ -25,6 +27,7 @@ type Request struct {
 	ImageType    string
 	ImageWriter  io.Writer
 	ManifestPath string
+	Blueprint      []byte
 }
 
 type APIError struct {
@@ -133,17 +136,30 @@ func (r *Request) Process() error {
 }
 
 func (h *requestHandler) pushBlueprint() error {
-	blueprintName := uuid.New().String()
-	response, err := client.PostJSONBlueprintV0(h.client, `{"name": "`+blueprintName+`"}`)
-
-	if err := translateError(response, err); err != nil {
-		return &APIError{
-			Message: "cannot post a new blueprint",
-			Cause:   err,
-		}
+	blueprintDetail, err := loadBlueprintDetailOrCreateEmpty(h.request.Blueprint)
+	if err != nil {
+		return err
 	}
 
-	h.blueprintName = blueprintName
+	h.blueprintName = blueprintDetail.name
+
+	if blueprintDetail.isTOML {
+		response, err := client.PostTOMLBlueprintV0(h.client, blueprintDetail.blueprint)
+		if err := translateError(response, err); err != nil {
+			return &APIError{
+				Message: "cannot post a new toml blueprint",
+				Cause:   err,
+			}
+		}
+	} else {
+		response, err := client.PostJSONBlueprintV0(h.client, blueprintDetail.blueprint)
+		if err := translateError(response, err); err != nil {
+			return &APIError{
+				Message: "cannot post a new json blueprint",
+				Cause:   err,
+			}
+		}
+	}
 
 	return nil
 }
@@ -308,4 +324,46 @@ func translateError(response *client.APIResponse, err error) error {
 	}
 
 	return nil
+}
+
+type blueprintDetail struct {
+	isTOML    bool
+	name      string
+	blueprint string
+}
+
+func loadBlueprintDetailOrCreateEmpty(blueprint []byte) (*blueprintDetail, error) {
+	if len(blueprint) == 0 {
+		name := uuid.New().String()
+		return &blueprintDetail{
+			isTOML:    false,
+			name:      name,
+			blueprint: fmt.Sprintf(`{"name":"%s"}`, name),
+		}, nil
+	}
+
+	return loadBlueprintDetail(blueprint)
+}
+
+func loadBlueprintDetail(rawBlueprint []byte) (*blueprintDetail, error) {
+	type blueprintStruct struct {
+		Name string `json:"name" toml:"name"`
+	}
+	var blueprint blueprintStruct
+	isTOML := false
+	err := json.Unmarshal(rawBlueprint, &blueprint)
+
+	if err != nil {
+		err := toml.Unmarshal(rawBlueprint, &blueprint)
+		isTOML = true
+		if err != nil {
+			return nil, fmt.Errorf("cannot unmarshal the blueprint, it's not json nor toml")
+		}
+	}
+
+	return &blueprintDetail{
+		name:      blueprint.Name,
+		isTOML:    isTOML,
+		blueprint: string(rawBlueprint),
+	}, nil
 }
