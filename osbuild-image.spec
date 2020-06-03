@@ -25,17 +25,8 @@ Source0:        %{gosource}
 
 BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang}
 %if 0%{?fedora}
-#BuildRequires:  golang(github.com/aws/aws-sdk-go)
-#BuildRequires:  golang(github.com/Azure/azure-sdk-for-go)
-#BuildRequires:  golang(github.com/Azure/azure-storage-blob-go/azblob)
-#BuildRequires:  golang(github.com/BurntSushi/toml)
-#BuildRequires:  golang(github.com/coreos/go-semver/semver)
-#BuildRequires:  golang(github.com/coreos/go-systemd/activation)
-#BuildRequires:  golang(github.com/google/uuid)
-#BuildRequires:  golang(github.com/julienschmidt/httprouter)
-#BuildRequires:  golang(github.com/gobwas/glob)
-#BuildRequires:  golang(github.com/google/go-cmp/cmp)
-#BuildRequires:  golang(github.com/stretchr/testify/assert)
+BuildRequires:  golang(github.com/BurntSushi/toml)
+BuildRequires:  golang(github.com/google/uuid)
 %endif
 
 Requires: osbuild-composer >= 13
